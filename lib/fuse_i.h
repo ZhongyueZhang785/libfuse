@@ -11,6 +11,13 @@
 
 struct mount_opts;
 
+void* fuse_session_loop_thread(void *__se_cpuid);
+
+struct fuse_session_with_cpuid {
+	struct fuse_session* se;
+	int cpuid;
+};
+
 struct fuse_req {
 	struct fuse_session *se;
 	uint64_t unique;

@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include <assert.h>
 
-static const char *hello_str = "Hello World!\n";
+static char hello_str[4096 * 2] = {0};
 static const char *hello_name = "hello";
 
 static int hello_stat(fuse_ino_t ino, struct stat *stbuf)
@@ -37,14 +37,14 @@ static int hello_stat(fuse_ino_t ino, struct stat *stbuf)
 	stbuf->st_ino = ino;
 	switch (ino) {
 	case 1:
-		stbuf->st_mode = S_IFDIR | 0755;
+		stbuf->st_mode = S_IFDIR | 0777;
 		stbuf->st_nlink = 2;
 		break;
 
 	case 2:
-		stbuf->st_mode = S_IFREG | 0444;
+		stbuf->st_mode = S_IFREG | 0777;
 		stbuf->st_nlink = 1;
-		stbuf->st_size = strlen(hello_str);
+		stbuf->st_size = 256 * 1024 * 4 * 1024;
 		break;
 
 	default:
@@ -138,8 +138,8 @@ static void hello_ll_open(fuse_req_t req, fuse_ino_t ino,
 {
 	if (ino != 2)
 		fuse_reply_err(req, EISDIR);
-	else if ((fi->flags & O_ACCMODE) != O_RDONLY)
-		fuse_reply_err(req, EACCES);
+	//else if ((fi->flags & O_ACCMODE) != O_RDONLY)
+	//	fuse_reply_err(req, EACCES);
 	else
 		fuse_reply_open(req, fi);
 }
@@ -153,12 +153,27 @@ static void hello_ll_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 	reply_buf_limited(req, hello_str, strlen(hello_str), off, size);
 }
 
+static void hello_ll_write(fuse_req_t req, fuse_ino_t ino, const char *buf,
+                   size_t size, off_t off, struct fuse_file_info *fi)
+{
+    (void)fi;
+	(void)ino;
+	(void)buf;
+	(void)off;
+	//The C library function void *memcpy(void *dest, const void *src, size_t n) 
+	//copies n characters from memory area src to memory area dest.
+	memcpy((void*)hello_str, buf, size);
+	//printf("%p %lu %ld\n", buf, size, off);
+    fuse_reply_write(req, size);
+}
+
 static const struct fuse_lowlevel_ops hello_ll_oper = {
 	.lookup		= hello_ll_lookup,
 	.getattr	= hello_ll_getattr,
 	.readdir	= hello_ll_readdir,
 	.open		= hello_ll_open,
 	.read		= hello_ll_read,
+	.write      = hello_ll_write,
 };
 
 int main(int argc, char *argv[])
@@ -168,6 +183,9 @@ int main(int argc, char *argv[])
 	struct fuse_cmdline_opts opts;
 	struct fuse_loop_config config;
 	int ret = -1;
+
+	memset(hello_str, 'A', 4096);
+	hello_str[4096] = '\0';
 
 	if (fuse_parse_cmdline(&args, &opts) != 0)
 		return 1;
